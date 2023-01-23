@@ -11,7 +11,7 @@ public class SkieXeroApiService {
         XeroCalloutUtils.HTTP_HEADER_TENANTID => SKIE_XERO_SETTING.Xero_Tenant_Id__c
     };
 
-    public static List<XeroData.Invoice> getInvoices(String pagination, String lastSync) {
+    public static HttpResponse getInvoices(String pagination, String lastSync) {
         Map<String, String> getHeaderMap = new Map<String, String>{
             XeroCalloutUtils.HTTP_HEADER_CONTENT_TYPE => XeroCalloutUtils.HTTP_CONTENT_TYPE_JSON,
             XeroCalloutUtils.HTTP_HEADER_TENANTID => SKIE_XERO_SETTING.Xero_Tenant_Id__c,
@@ -19,17 +19,14 @@ public class SkieXeroApiService {
         };
 
         String endpoint = 'Callout:Xero' + '/api.xro/2.0/Invoices?page=' + pagination;
-        try {
-            HttpResponse response = XeroCalloutUtils.callout(endpoint, XeroCalloutUtils.HTTP_REQUEST_METHOD_GET, getHeaderMap);
-            XeroData.InvoiceResponse invoiceResponseWrapper = (XeroData.InvoiceResponse)JSON.deserialize(response.getBody(), XeroData.InvoiceResponse.class);
-            String resString = JSON.serializePretty(invoiceResponseWrapper, false);
-            List<XeroData.Invoice> xeroInvoiceList = invoiceResponseWrapper.invoices;
+        HttpResponse response = XeroCalloutUtils.callout(endpoint, XeroCalloutUtils.HTTP_REQUEST_METHOD_GET, getHeaderMap);
 
-            return xeroInvoiceList;
-            
-        } catch (XeroException ex) {
-            throw new XeroException(ex.getMessage(), null);
-        } 
+        if(response.getStatusCode() == 200) {
+            return response;
+
+        } else {
+            throw new XeroException(response.getStatusCode(), response.getBody(), endpoint);
+        }
     }
     
     public static void postInvoice(List<Xero_Invoice__c> invoices) {
@@ -49,6 +46,9 @@ public class SkieXeroApiService {
         HttpResponse response =  XeroCalloutUtils.callout(endpoint, 'POST', headerMap, requestPayload);
         
         XeroData.InvoiceResponse resPayload = (XeroData.InvoiceResponse)JSON.deserialize(response.getBody(), XeroData.InvoiceResponse.class);
+
+        // return resPayload;
+
         String resPayloadStr = JSON.serializePretty(resPayload, false);
         if(resPayload.Status == 'OK') {
             List<Xerodata.Invoice> invoiceResList = resPayload.invoices;
@@ -62,30 +62,23 @@ public class SkieXeroApiService {
             for(Integer i = 0; i < invoiceResList.size(); i++) {
                 invoices[i].Xero_Invoice_Id__c = invoiceWrapper.get(i);
                 invoiceToUpdateList.add(invoices[i]);
-                XERO_LOG_LIST.add(XeroAssembler.buildXeroLog(invoices[i], requestPayload, resPayloadStr, System.now(), resPayload.Message, false));
+                if(!SKIE_XERO_SETTING.Keep_Error_Logs_Only__c) {
+                    String description = 'POST: Xero Invoice with ID: '+ invoice.Id +' Successfully';
+                    XERO_LOG_LIST.add(XeroAssembler.buildXeroLog(invoices[i], requestPayload, resPayloadStr, String.valueOf(System.now()), resPayload.Message, false, description));
+                }
             }
-
-            // for(Xero_Invoice__c invoice : invoices) {
-            //     invoice.Xero_Invoice_Id__c = invoiceData.invoiceID;
-            //     invoiceToUpdateList.add(invoice);
-            // }
-
-            System.debug(invoiceToUpdateList);
-
-            // for(Xero_Invoice__c invoice : invoices) {
-            //     xerologlist.add(XeroAssembler.buildXeroLog(invoice, requestPayload, resPayloadStr, System.now(), resPayload.Message));
-            // }
 
         } else {
             List<XeroData.Elements> elements = resPayload.Elements;
             for(Xerodata.Elements el : elements) {
                for(Xero_Invoice__c invoice : invoices) {
-                XERO_LOG_LIST.add(XeroAssembler.buildXeroLog(invoice, requestPayload, resPayloadStr, System.now(), String.valueOf(el.ValidationErrors), true));
+                String description = 'POST: Xero Invoice with ID: '+ invoice.Id +' failed';
+                XERO_LOG_LIST.add(XeroAssembler.buildXeroLog(invoice, requestPayload, resPayloadStr, String.valueOf(System.now()), String.valueOf(el.ValidationErrors), true, description));
                     System.debug('ERROR LOG');
                     System.debug(XERO_LOG_LIST);
                 }
                 insert XERO_LOG_LIST;
-                throw new XeroException(resPayload.status, String.valueOf(el.ValidationErrors));
+                throw new XeroException(response.getStatusCode(), String.valueOf(el.ValidationErrors), endpoint);
             }
         }
         insert XERO_LOG_LIST;
@@ -126,7 +119,10 @@ public class SkieXeroApiService {
             for(Integer i = 0; i < contacts.size(); i++) {
                 contacts[i].Xero_Contact_Id__c = xeroConIdMap.get(i);
                 contactToUpdateList.add(contacts[i]);
-                XERO_LOG_LIST.add(XeroAssembler.buildXeroContactLog(contacts[i], requestPayload, resPayloadStr, System.now(), null, false));
+                if(!SKIE_XERO_SETTING.Keep_Error_Logs_Only__c) {
+                    String description = 'POST: Xero Contact with ID: ' + contacts[i].Id + ' successfully';
+                    XERO_LOG_LIST.add(XeroAssembler.buildXeroContactLog(contacts[i], requestPayload, resPayloadStr, String.valueOf(System.now()), null, false, description));
+                }
             }
 
         } else {
@@ -135,10 +131,11 @@ public class SkieXeroApiService {
             List<XeroData.Elements> elements = resPayload.Elements;
             for(XeroData.Elements element : elements) {
                 for(Xero_Contact__c ct : contacts) {
-                    XERO_LOG_LIST.add(XeroAssembler.buildXeroContactLog(ct, requestPayload, resPayloadStr, System.now(), String.valueOf(element.ValidationErrors), true));
+                    String description = 'POST: Xero Contact with ID: ' + ct.Id + ' failed';
+                    XERO_LOG_LIST.add(XeroAssembler.buildXeroContactLog(ct, requestPayload, resPayloadStr, String.valueOf(System.now()), String.valueOf(element.ValidationErrors), true, description));
 
                     insert XERO_LOG_LIST;
-                    throw new XeroException(resPayload.status, String.valueOf(element.ValidationErrors));
+                    throw new XeroException(response.getStatusCode(), String.valueOf(element.ValidationErrors), endpoint);
                 }
             }
         }
@@ -179,7 +176,10 @@ public class SkieXeroApiService {
 
             for(Integer i = 0; i < xeroInvoices.size(); i++) {
                 xeroInvoices[i].Xero_Invoice_Id__c = xeroInvoiceIdMap.get(i);
-                XERO_LOG_LIST.add(XeroAssembler.buildXeroLog(xeroInvoices[i], requestPayload, resPayloadStr, System.now(), resPayload.Message, false));
+                if(!SKIE_XERO_SETTING.Keep_Error_Logs_Only__c) {
+                    String description = 'POST: Xero Invoice with ID: '+ xeroInvoices[i].Id +' Successfully';
+                    XERO_LOG_LIST.add(XeroAssembler.buildXeroLog(xeroInvoices[i], requestPayload, resPayloadStr, String.valueOf(System.now()), resPayload.Message, false, description));
+                }
             }
 
         } else {
@@ -187,7 +187,8 @@ public class SkieXeroApiService {
 
             for(Xerodata.Elements el : elements) {
                 for(Xero_Invoice__c invoice : xeroInvoices) {
-                    XERO_LOG_LIST.add(XeroAssembler.buildXeroLog(invoice, requestPayload, resPayloadStr, System.now(), String.valueOf(el.ValidationErrors), true));
+                    String description = 'POST: Xero Invoice with ID: '+ invoice.Id +' failed';
+                    XERO_LOG_LIST.add(XeroAssembler.buildXeroLog(invoice, requestPayload, resPayloadStr, String.valueOf(System.now()), String.valueOf(el.ValidationErrors), true, description));
                     // insert XERO_LOG_LIST;
 
                     // throw new XeroException(resPayload.Status, String.valueOf(el.ValidationErrors));

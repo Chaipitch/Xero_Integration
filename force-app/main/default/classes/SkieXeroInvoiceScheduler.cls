@@ -3,7 +3,8 @@ public class SkieXeroInvoiceScheduler implements Schedulable{
         Skie_Xero_Variables__c xeroVar = Skie_Xero_Variables__c.getOrgDefaults();
         Datetime lastSync = xeroVar.lastSyncDate__c;
 
-        String currentDateTimeUTC = lastSync.format('yyyy-MM-dd\'T\'HH:mm:ss');
+        String currentDateTimeUTC = lastSync.format('yyyy-MM-dd\'T\'00:00:00');//'yyyy-MM-dd\'T\'HH:mm:ss'
+        System.debug('currentDateTimeUTC::: '+currentDateTimeUTC);
 
         System.enqueueJob(new XeroSyncXeroInvoicetoSFQueueable(1, currentDateTimeUTC));
 

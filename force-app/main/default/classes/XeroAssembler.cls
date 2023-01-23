@@ -10,7 +10,7 @@ public class XeroAssembler {
         List<XeroData.LineItem> lines = new List<XeroData.LineItem>();
         for(Xero_Invoice_Line__c xeroInvoice : lineItems) {
             XeroData.LineItem line = new XeroData.LineItem();
-            line.Description = xeroInvoice.Description__c;
+            // line.Description = xeroInvoice.Description__c;
             line.Quantity = xeroInvoice.Quantity__c;
             line.UnitAmount = xeroInvoice.UnitAmount__c;
             //line.DiscountRate = xeroInvoice.DiscountRate__c;
@@ -33,26 +33,54 @@ public class XeroAssembler {
         return contactRequest;
     }
 
-    public static Xero_Log__c buildXeroLog(Xero_Invoice__c invoice, String req, String res,Datetime processTime, String message, boolean hasError) {
+    public static Xero_Log__c buildXeroLog(Xero_Invoice__c invoice, String req, String res,String processTime, String message, boolean hasError, String description) {
         Xero_Log__c log = new Xero_Log__c();
         log.Xero_Invoice__c = invoice?.Id;
         log.Error_Message__c = message;
-        log.Process_Time__c = String.valueOf(processTime);
+        log.Process_Time__c = DateTime.valueOf(processTime);
         log.Request_Payload__c = req;
         log.Response_Payload__c = res;
         log.Error__c = hasError;
+        log.Description__c = description;
         
         return log;
     }
 
-    public static Xero_Log__c buildXeroContactLog(Xero_Contact__c contact, String req, String res,Datetime processTime, String message, Boolean hasError) {
+    public static Xero_Log__c buildXeroContactLog(Xero_Contact__c contact, String req, String res, String processTime, String message, Boolean hasError, String description) {
         Xero_Log__c log = new Xero_Log__c();
         log.Xero_Contact__c = contact?.Id;
         log.Error_Message__c = message;
-        log.Process_Time__c = String.valueOf(processTime);
+        log.Process_Time__c = DateTime.valueOf(processTime);
         log.Request_Payload__c = req;
         log.Response_Payload__c = res;
         log.Error__c = hasError;
+        log.Description__c = description;
+
+        return log;
+    }
+
+    public static Xero_Log__c buildXeroContactLog(String contact, String req, String res, String processTime, String message, Boolean hasError, String description) {
+        Xero_Log__c log = new Xero_Log__c();
+        log.Xero_Contact__c = contact;
+        log.Error_Message__c = message;
+        log.Process_Time__c = DateTime.valueOf(processTime);
+        log.Request_Payload__c = req;
+        log.Response_Payload__c = res;
+        log.Error__c = hasError;
+        log.Description__c = description;
+
+        return log;
+    }
+
+    public static Xero_Log__c buildLog(String req, String res, String processTime, String message, Boolean hasError, String description) {
+        Xero_Log__c log = new Xero_Log__c();
+        // log.Xero_Contact__c = contact?.Id;
+        log.Error_Message__c = message;
+        log.Process_Time__c = DateTime.valueOf(processTime);
+        log.Request_Payload__c = req;
+        log.Response_Payload__c = res;
+        log.Error__c = hasError;
+        log.Description__c = description;
 
         return log;
     }
